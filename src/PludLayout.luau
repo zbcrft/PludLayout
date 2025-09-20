@@ -68,8 +68,10 @@ function plud_layout:update()
 			row * (cell_h + pad_y),
 			self.Padding.Y.Offset + row * (self.Size.Y.Offset + self.Padding.Y.Offset)
 		)
+		if obj.Position == pos then continue end
 
 		if self.SmoothUpdates and self.UpdateTween then
+			print("yes")
 			tween_service:Create(obj, self.UpdateTween, {Position = pos}):Play()
 			obj.Size = self.Size
 		else
