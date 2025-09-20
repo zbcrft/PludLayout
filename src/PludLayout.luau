@@ -13,7 +13,7 @@ local plud_layout = {}
 plud_layout.__index =  plud_layout
 
 function plud_layout.create_layout(grid_data: Layout)
-	local self = setmetatable({
+	local self: Layout = setmetatable({
 		blacklisted = {};
 		affected_objs = {};
 	}, plud_layout)
@@ -22,15 +22,21 @@ function plud_layout.create_layout(grid_data: Layout)
 		self[i] = v
 	end
 	
+	self.Linked.ChildAdded:Connect(function(child)
+		print(`New child: {child}`)
+		self:whitelist(child)
+	end)
+	
+	self.Linked.ChildRemoved:Connect(function(child)
+		print(`Lost child: {child}`)
+		self:blacklist(child)
+	end)
+	
 	return self
 end
 
 function plud_layout:update()
 	if not self.ConstantUpdates then return end
-	
-	self.linked.ChildAdded:Connect(function(child)
-		self:whitelist(child)
-	end)
 	
 	local cleaned = {}
 	for _, obj in self.affected_objs do
