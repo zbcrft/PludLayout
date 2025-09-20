@@ -6,6 +6,7 @@ export type Layout = {
 	ConstantUpdates: boolean;
 	SmoothUpdates: boolean;
 	UpdateTween: TweenInfo; -- only works with constant updates and smooth updates
+	Linked: Frame;
 }
 
 local plud_layout = {}
@@ -26,6 +27,10 @@ end
 
 function plud_layout:update()
 	if not self.ConstantUpdates then return end
+	
+	self.linked.ChildAdded:Connect(function(child)
+		self:whitelist(child)
+	end)
 	
 	local cleaned = {}
 	for _, obj in self.affected_objs do
