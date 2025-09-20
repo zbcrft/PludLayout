@@ -27,12 +27,12 @@ function plud_layout.create_layout(grid_data: Layout)
 	end
 
 	self.Linked.ChildAdded:Connect(function(child)
-		--print(`New child: {child}`)
+		print(`New child: {child}`)
 		self:whitelist(child)
 	end)
 
 	self.Linked.ChildRemoved:Connect(function(child)
-		--print(`Lost child: {child}`)
+		print(`Lost child: {child}`)
 		self:blacklist(child)
 	end)
 
@@ -71,7 +71,6 @@ function plud_layout:update()
 		if obj.Position == pos then continue end
 
 		if self.SmoothUpdates and self.UpdateTween then
-			print("yes")
 			tween_service:Create(obj, self.UpdateTween, {Position = pos}):Play()
 			obj.Size = self.Size
 		else
