@@ -102,6 +102,10 @@ function plud_layout:update()
 			else
 				break
 			end
+
+			if iter == MAX_ITERATION then
+				warn("Reached max iteration for trying to find the next position of an element")
+			end
 		end
 		
 		if grid_x > 1 or grid_y > 1 then
