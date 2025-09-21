@@ -1,5 +1,7 @@
 local tween_service = game:GetService("TweenService")
 
+local MAX_ITERATION = 100
+
 export type Layout = {
 	Padding: UDim2;
 	Size: UDim2;
@@ -7,9 +9,9 @@ export type Layout = {
 	SmoothUpdates: boolean;
 	UpdateTween: TweenInfo; -- only works with constant updates and smooth updates
 	Linked: Frame;
-	Whitelisted: {};
-	Blacklisted: {[Object]: boolean};
-	Initialized: {[Object]: boolean};
+	whitelisted: {};
+	blacklisted: {[Object]: boolean};
+	initialized: {[Object]: boolean};
 }
 
 local plud_layout = {}
@@ -33,10 +35,18 @@ function plud_layout.create_layout(grid_data: Layout)
 
 	self.Linked.ChildRemoved:Connect(function(child)
 		--print(`Lost child: {child}`)
-		self:blacklist(child)
+		self:remove(child)
 	end)
+	
+	for _, child in self.Linked:GetChildren() do
+		self:whitelist(child)
+	end
 
 	return self
+end
+
+local function get_offset(UDim: UDim, AbsoluteSize: number): number
+	return AbsoluteSize*UDim.Scale+UDim.Offset
 end
 
 function plud_layout:update()
@@ -50,48 +60,105 @@ function plud_layout:update()
 		self.whitelisted = cleaned
 	end
 	
-	local corrected_padding = math.max(.001, self.Padding.X.Scale)
-	local cols = math.floor((1 + corrected_padding) / (math.max(.001, self.Size.X.Scale) + corrected_padding))
-	cols = math.max(1, cols)
-	for i, obj in self.whitelisted do
-		local col = (i-1) % cols
-		local row = math.floor((i-1) / cols)
+	local offset = -1
+	local taken_collumns = {}::{[number]:{number}}
+	
+	local parent_w = self.Linked.AbsoluteSize.X
+	local parent_h = self.Linked.AbsoluteSize.Y
+	local cell_w = get_offset(self.Size.X, parent_w)
+	local cell_h = get_offset(self.Size.Y, parent_h)
+	local pad_w = get_offset(self.Padding.X, parent_w)
+	local pad_h = get_offset(self.Padding.Y, parent_h)
 
-		local cell_w = self.Size.X.Scale
-		local cell_h = self.Size.Y.Scale
-		local pad_x = self.Padding.X.Scale
-		local pad_y = self.Padding.Y.Scale
+	local collumns = parent_w//(cell_w+pad_w)
+	
+	for i = 1, #self.whitelisted do
+		local obj = self.whitelisted[i]
 
-		local pos = UDim2.new(
-			col * (cell_w + pad_x),
-			self.Padding.X.Offset + col * (self.Size.X.Offset + self.Padding.X.Offset),
-			row * (cell_h + pad_y),
-			self.Padding.Y.Offset + row * (self.Size.Y.Offset + self.Padding.Y.Offset)
-		)
-		if obj.Position == pos and obj.Size == self.Size then continue end
-
+		local obj_w = get_offset(obj.Size.X, parent_w)
+		local obj_h = get_offset(obj.Size.Y, parent_h)
+		local grid_x = math.ceil(obj_w/cell_w)
+		local grid_y = math.ceil(obj_h/cell_h)
+		
+		i += offset
+		local row = (i)//collumns
+		local collumn = (i)%collumns
+		
+		if grid_x > 1 and collumn == collumns-1 then
+			i += 1
+			offset += 1
+			
+			row = (i)//collumns
+			collumn = (i)%collumns
+		end
+		
+		for iter = 1, MAX_ITERATION do
+			if taken_collumns[row] and table.find(taken_collumns[row], collumn) then
+				offset += 1
+				i += 1
+				
+				row = (i)//collumns
+				collumn = (i)%collumns
+			else
+				break
+			end
+		end
+		
+		if grid_x > 1 or grid_y > 1 then
+			for offset_x = 0, grid_x-1 do
+				for offset_y = 0, grid_y-1 do
+					local offset_row = row + offset_y
+					local offset_collumn = collumn + offset_x
+					
+					if not taken_collumns[offset_row] then
+						taken_collumns[offset_row] = {}
+					end
+					
+					table.insert(taken_collumns[offset_row], offset_collumn)
+				end
+			end
+		end
+		
+		local pos = UDim2.fromOffset(collumn*(cell_w+pad_w),row*(cell_h+pad_h))
+		
+		if obj.Position == pos then continue end
+		
 		if self.SmoothUpdates and self.UpdateTween then
 			tween_service:Create(obj, self.UpdateTween, {Position = pos}):Play()
-			obj.Size = self.Size
 		else
 			obj.Position = pos
-			obj.Size = self.Size
 		end
 
 		self.initialized[obj] = true
 	end
 end
 
-function plud_layout:blacklist(obj: Object)
+function plud_layout:unwhitelist(obj: Object)
 	if not obj then return end
-	self.blacklisted[obj] = true
-
+	
 	for i = 1, #self.whitelisted do
 		if self.whitelisted[i] == obj then
 			self.whitelisted[i] = nil
 			break
 		end
 	end
+end
+
+function plud_layout:remove(obj: Object)
+	if not obj then return end
+	
+	self.blacklisted[obj] = nil
+	
+	self:unwhitelist(obj)
+	
+	self.initialized[obj] = nil
+end
+
+function plud_layout:blacklist(obj: Object)
+	if not obj then return end
+	self.blacklisted[obj] = true
+
+	self:unwhitelist(obj)
 
 	self.initialized[obj] = false
 end
